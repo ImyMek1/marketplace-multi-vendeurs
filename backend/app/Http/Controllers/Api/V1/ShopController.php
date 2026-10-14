@@ -103,6 +103,30 @@ class ShopController extends Controller
         ]);
     }
 
+    public function updateMyShop(
+    UpdateShopRequest $request
+): JsonResponse {
+    $shop = $request->user()->shop()->first();
+
+    if (!$shop) {
+        return response()->json([
+            'message' => 'You do not have a shop yet.',
+        ], 404);
+    }
+
+    Gate::forUser($request->user())->authorize(
+        'update',
+        $shop
+    );
+
+    $shop->update($request->validated());
+
+    return response()->json([
+        'message' => 'Shop updated successfully.',
+        'data' => $shop->fresh(),
+    ]);
+}
+
     public function approve(
         Request $request,
         Shop $shop

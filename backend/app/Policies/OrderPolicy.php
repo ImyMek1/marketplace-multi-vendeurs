@@ -49,17 +49,18 @@ class OrderPolicy
             return false;
         }
 
-        $hasOwnProducts = $order->items()
-            ->whereHas('product.shop', function ($query) use ($user) {
-                $query->where('seller_id', $user->id);
-            })
-            ->exists();
-
-        if (!$hasOwnProducts) {
+        if (!in_array(
+            $order->status,
+            ['pending', 'confirmed'],
+            true
+        )) {
             return false;
         }
 
-        return in_array($order->status, ['pending', 'confirmed'], true);
+        return $order->sellerFulfillments()
+            ->where('seller_id', $user->id)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->exists();
     }
 
     public function cancel(User $user, Order $order): bool

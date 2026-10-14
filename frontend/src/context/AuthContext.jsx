@@ -6,11 +6,20 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('auth_user')
 
-    return storedUser ? JSON.parse(storedUser) : null
+    if (!storedUser || storedUser === 'undefined') {
+      return null
+    }
+
+    try {
+      return JSON.parse(storedUser)
+    } catch {
+      localStorage.removeItem('auth_user')
+      return null
+    }
   })
 
-  const [loading, setLoading] = useState(
-    () => Boolean(localStorage.getItem('auth_token')),
+  const [loading, setLoading] = useState(() =>
+    Boolean(localStorage.getItem('auth_token')),
   )
 
   useEffect(() => {
@@ -20,32 +29,34 @@ export function AuthProvider({ children }) {
       return
     }
 
-    authService
-      .getMe()
-      .then((response) => {
-        const authenticatedUser = response.data
+    const authenticate = async () => {
+      try {
+        const response = await authService.getMe()
+        const authenticatedUser = response.user
 
         setUser(authenticatedUser)
+
         localStorage.setItem(
           'auth_user',
           JSON.stringify(authenticatedUser),
         )
-      })
-      .catch(() => {
+      } catch {
         localStorage.removeItem('auth_token')
         localStorage.removeItem('auth_user')
         setUser(null)
-      })
-      .finally(() => {
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    authenticate()
   }, [])
 
   const login = async (credentials) => {
     const response = await authService.login(credentials)
 
     const token = response.token
-    const authenticatedUser = response.data
+    const authenticatedUser = response.user
 
     localStorage.setItem('auth_token', token)
     localStorage.setItem(
@@ -62,7 +73,7 @@ export function AuthProvider({ children }) {
     const response = await authService.register(data)
 
     const token = response.token
-    const authenticatedUser = response.data
+    const authenticatedUser = response.user
 
     localStorage.setItem('auth_token', token)
     localStorage.setItem(
@@ -92,6 +103,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    setUser,
   }
 
   return (

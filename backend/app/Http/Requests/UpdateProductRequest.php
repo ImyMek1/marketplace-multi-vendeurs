@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,6 +20,7 @@ class UpdateProductRequest extends FormRequest
     public function rules(): array
     {
         $user = $this->user();
+        $product = $this->route('product');
 
         $statusRules = [
             'sometimes',
@@ -45,20 +47,30 @@ class UpdateProductRequest extends FormRequest
             'shop_id' => [
                 'sometimes',
                 'integer',
-                Rule::exists('shops', 'id')->where(function ($query) use ($user) {
-                    if ($user?->role?->name === 'seller') {
-                        $query->where('seller_id', $user->id);
-                    }
+                Rule::exists('shops', 'id')->where(
+                    function ($query) use ($user) {
+                        if ($user?->role?->name === 'seller') {
+                            $query->where(
+                                'seller_id',
+                                $user->id
+                            );
+                        }
 
-                    $query->where('status', 'active');
-                }),
+                        $query->where('status', 'active');
+                    }
+                ),
             ],
 
             'category_id' => [
                 'sometimes',
                 'integer',
                 Rule::exists('categories', 'id')
-                    ->where(fn ($query) => $query->where('status', 'active')),
+                    ->where(
+                        fn ($query) => $query->where(
+                            'status',
+                            'active'
+                        )
+                    ),
             ],
 
             'name' => [
@@ -88,7 +100,6 @@ class UpdateProductRequest extends FormRequest
                 'nullable',
                 'numeric',
                 'gt:0',
-                'lt:price',
             ],
 
             'stock' => [
@@ -105,5 +116,32 @@ class UpdateProductRequest extends FormRequest
 
             'status' => $statusRules,
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if (!$this->filled('promotional_price')) {
+                return;
+            }
+
+            $product = $this->route('product');
+
+            if (!$product instanceof Product) {
+                return;
+            }
+
+            $price = $this->input(
+                'price',
+                $product->price
+            );
+
+            if ((float) $this->input('promotional_price') >= (float) $price) {
+                $validator->errors()->add(
+                    'promotional_price',
+                    'The promotional price must be lower than the regular price.'
+                );
+            }
+        });
     }
 }

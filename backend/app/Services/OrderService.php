@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Address;
+use App\Models\Cart;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -15,8 +16,7 @@ class OrderService
     public function __construct(
         private CouponService $couponService,
         private NotificationService $notificationService
-    ) {
-    }
+    ) {}
 
     public function createOrder(
         User $user,
@@ -41,11 +41,14 @@ class OrderService
                 ]);
             }
 
-            $cart = $user->cart()
-                ->with('items')
+            $cart = Cart::query()
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
                 ->first();
 
-            if (!$cart || $cart->items->isEmpty()) {
+            $cartItems = $cart?->items()->get() ?? collect();
+
+            if ($cartItems->isEmpty()) {
                 throw ValidationException::withMessages([
                     'cart' => [
                         'Your cart is empty.',
@@ -53,7 +56,7 @@ class OrderService
                 ]);
             }
 
-            $productIds = $cart->items
+            $productIds = $cartItems
                 ->pluck('product_id')
                 ->filter()
                 ->unique()
@@ -66,8 +69,9 @@ class OrderService
                 ->keyBy('id');
 
             $subtotal = 0;
+            $sellerIds = [];
 
-            foreach ($cart->items as $item) {
+            foreach ($cartItems as $item) {
                 $product = $products->get($item->product_id);
 
                 if (!$product || $product->status !== 'published') {
@@ -85,6 +89,18 @@ class OrderService
                         ],
                     ]);
                 }
+
+                $sellerId = $product->shop?->seller_id;
+
+                if (!$sellerId) {
+                    throw ValidationException::withMessages([
+                        'cart' => [
+                            'One or more products have no valid seller.',
+                        ],
+                    ]);
+                }
+
+                $sellerIds[$sellerId] = true;
 
                 $unitPrice = $product->promotional_price
                     ?? $product->price;
@@ -128,7 +144,7 @@ class OrderService
                 'coupon_id' => $coupon?->id,
             ]);
 
-            foreach ($cart->items as $item) {
+            foreach ($cartItems as $item) {
                 $product = $products->get($item->product_id);
 
                 $unitPrice = $product->promotional_price
@@ -145,6 +161,13 @@ class OrderService
                     'stock',
                     $item->quantity
                 );
+            }
+
+            foreach (array_keys($sellerIds) as $sellerId) {
+                $order->sellerFulfillments()->create([
+                    'seller_id' => $sellerId,
+                    'status' => 'pending',
+                ]);
             }
 
             $order->payment()->create([
@@ -168,6 +191,7 @@ class OrderService
                 'items.product',
                 'payment',
                 'address',
+                'sellerFulfillments',
             ]);
         });
     }

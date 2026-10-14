@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreProductImageRequest extends FormRequest
 {
@@ -38,12 +37,7 @@ class StoreProductImageRequest extends FormRequest
                 'nullable',
                 'integer',
                 'min:0',
-                Rule::when(
-                    $this->has('images'),
-                    Rule::in(
-                        array_keys($this->input('images', []))
-                    )
-                ),
+                'max:9',
             ],
         ];
     }

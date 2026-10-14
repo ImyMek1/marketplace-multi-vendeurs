@@ -20,7 +20,42 @@ class DeliveryService
 
     public function __construct(
         private NotificationService $notificationService
-    ) {
+    ) {}
+
+    public function getDriverDashboard(User $driver): array
+    {
+        $deliveries = Delivery::query()
+            ->where('driver_id', $driver->id)
+            ->with([
+                'order:id,order_number,recipient_name,phone,address_line,city,postal_code,total,status',
+                'order.user:id,name,phone',
+            ])
+            ->latest()
+            ->get();
+
+        $stats = [
+            'assigned' => $deliveries->where('status', 'assigned')->count(),
+            'in_progress' => $deliveries
+                ->whereIn('status', ['picked_up', 'in_transit'])
+                ->count(),
+            'completed' => $deliveries->where('status', 'delivered')->count(),
+            'failed' => $deliveries->where('status', 'failed')->count(),
+        ];
+
+        return [
+            'stats' => $stats,
+            'recent_deliveries' => $deliveries->take(5)->values(),
+            'active_deliveries' => $deliveries
+                ->reject(
+                    fn (Delivery $delivery) => in_array(
+                        $delivery->status,
+                        ['delivered', 'failed'],
+                        true
+                    )
+                )
+                ->take(10)
+                ->values(),
+        ];
     }
 
     public function assignDriver(
@@ -66,6 +101,23 @@ class DeliveryService
                 throw ValidationException::withMessages([
                     'order' => [
                         'This order cannot be assigned for delivery.',
+                    ],
+                ]);
+            }
+
+            $fulfillments = $order->sellerFulfillments()
+                ->lockForUpdate()
+                ->get();
+
+            if (
+                $fulfillments->isEmpty()
+                || $fulfillments->contains(
+                    fn ($fulfillment) => $fulfillment->status !== 'prepared'
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'order' => [
+                        'All sellers must prepare their items before driver assignment.',
                     ],
                 ]);
             }
@@ -134,9 +186,7 @@ class DeliveryService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $allowedStatuses = $this->transitions[
-                $delivery->status
-            ] ?? [];
+            $allowedStatuses = $this->transitions[$delivery->status] ?? [];
 
             if (!in_array($newStatus, $allowedStatuses, true)) {
                 throw ValidationException::withMessages([

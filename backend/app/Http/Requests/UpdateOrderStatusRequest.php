@@ -9,58 +9,35 @@ class UpdateOrderStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $role = $this->user()?->role?->name;
-
-        if ($role === 'admin') {
-            return true;
-        }
-
-        if ($role !== 'seller') {
-            return false;
-        }
-
-        $order = $this->route('order');
-        $status = $this->input('status');
-
-        if (!$order) {
-            return false;
-        }
-
-        return match ($order->status) {
-            'pending' => $status === 'confirmed',
-            'confirmed' => $status === 'prepared',
-            default => false,
-        };
+        return in_array(
+            $this->user()?->role?->name,
+            ['admin', 'seller'],
+            true
+        );
     }
 
     public function rules(): array
     {
         $role = $this->user()?->role?->name;
 
-        if ($role === 'admin') {
-            return [
-                'status' => [
-                    'required',
-                    'string',
-                    Rule::in([
-                        'confirmed',
-                        'prepared',
-                        'shipped',
-                        'delivered',
-                        'cancelled',
-                    ]),
-                ],
-            ];
-        }
-
         return [
             'status' => [
                 'required',
                 'string',
-                Rule::in([
-                    'confirmed',
-                    'prepared',
-                ]),
+                Rule::in(
+                    $role === 'admin'
+                        ? [
+                            'confirmed',
+                            'prepared',
+                            'shipped',
+                            'delivered',
+                            'cancelled',
+                        ]
+                        : [
+                            'confirmed',
+                            'prepared',
+                        ]
+                ),
             ],
         ];
     }

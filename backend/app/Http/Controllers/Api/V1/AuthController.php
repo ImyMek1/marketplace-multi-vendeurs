@@ -7,6 +7,7 @@ use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ResetPasswordRequest;
+use App\Http\Requests\UpdateProfileRequest;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogService;
@@ -20,8 +21,7 @@ class AuthController extends Controller
 {
     public function __construct(
         private AuditLogService $auditLogService
-    ) {
-    }
+    ) {}
 
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -115,6 +115,29 @@ class AuthController extends Controller
     {
         return response()->json([
             'user' => $request->user()->load('role'),
+        ]);
+    }
+
+    public function updateProfile(
+        UpdateProfileRequest $request
+    ): JsonResponse {
+        $user = $request->user();
+
+        $user->update($request->validated());
+
+        $user->load('role');
+
+        $this->auditLogService->create(
+            $user,
+            'profile_updated',
+            $user,
+            "User profile {$user->email} was updated.",
+            $request->ip()
+        );
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => $user,
         ]);
     }
 

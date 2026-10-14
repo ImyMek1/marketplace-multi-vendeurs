@@ -12,13 +12,26 @@ use App\Services\DeliveryService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DeliveryController extends Controller
 {
     public function __construct(
         private DeliveryService $deliveryService,
         private AuditLogService $auditLogService
-    ) {
+    ) {}
+
+    public function driverDashboard(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Delivery::class);
+
+        $dashboard = $this->deliveryService->getDriverDashboard(
+            $request->user()
+        );
+
+        return response()->json([
+            'data' => $dashboard,
+        ]);
     }
 
     public function driverDeliveries(Request $request): JsonResponse
@@ -132,13 +145,35 @@ class DeliveryController extends Controller
     {
         $this->authorize('viewAny', Delivery::class);
 
-        $deliveries = Delivery::query()
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', Rule::in(['assigned', 'picked_up', 'in_transit', 'delivered', 'failed'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $query = Delivery::query()
             ->with([
                 'order:id,order_number,total,status',
                 'driver:id,name,email,phone',
-            ])
-            ->latest()
-            ->paginate(10);
+            ]);
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($builder) use ($search) {
+                $builder->whereHas('order', function ($orderQuery) use ($search) {
+                    $orderQuery->where('order_number', 'like', "%{$search}%")
+                        ->orWhere('recipient_name', 'like', "%{$search}%");
+                })->orWhereHas('driver', function ($driverQuery) use ($search) {
+                    $driverQuery->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        $deliveries = $query->latest()->paginate($filters['per_page'] ?? 10);
 
         return response()->json($deliveries);
     }

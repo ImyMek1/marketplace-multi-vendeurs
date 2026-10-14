@@ -39,30 +39,30 @@ class StoreCouponRequest extends FormRequest
             ],
 
             'starts_at' => [
-                'required',
+                'nullable',
                 'date',
             ],
 
-            'ends_at' => [
-                'required',
+            'expires_at' => [
+                'nullable',
                 'date',
                 'after:starts_at',
             ],
 
-            'minimum_order' => [
+            'min_order_amount' => [
                 'nullable',
                 'numeric',
                 'min:0',
             ],
 
-            'maximum_uses' => [
+            'max_usage' => [
                 'nullable',
                 'integer',
                 'min:1',
             ],
 
             'status' => [
-                'required',
+                'sometimes',
                 'string',
                 Rule::in([
                     'active',
@@ -85,5 +85,12 @@ class StoreCouponRequest extends FormRequest
                 );
             }
         });
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('code')) {
+            $this->merge(['code' => strtoupper($this->input('code'))]);
+        }
     }
 }

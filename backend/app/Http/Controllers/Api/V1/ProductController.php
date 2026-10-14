@@ -16,8 +16,7 @@ class ProductController extends Controller
 {
     public function __construct(
         private AuditLogService $auditLogService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -81,7 +80,10 @@ class ProductController extends Controller
                 'category:id,name,parent_id',
                 'images:id,product_id,path,is_primary,sort_order',
             ])
-            ->where('status', 'published');
+            ->where('status', 'published')
+            ->whereHas('shop', function ($shopQuery) {
+                $shopQuery->where('status', 'active');
+            });
 
         if (!empty($validated['search'])) {
             $search = $validated['search'];
@@ -138,9 +140,33 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
+    public function sellerProducts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $products = Product::query()
+            ->with([
+                'shop:id,seller_id,name',
+                'category:id,name,parent_id',
+                'images:id,product_id,path,is_primary,sort_order',
+            ])
+            ->whereHas('shop', function ($query) use ($user) {
+                $query->where('seller_id', $user->id);
+            })
+            ->latest()
+            ->paginate(
+                $request->integer('per_page', 12)
+            );
+
+        return response()->json($products);
+    }
+
     public function show(Product $product): JsonResponse
     {
-        if ($product->status !== 'published') {
+        if (
+            $product->status !== 'published'
+            || $product->shop?->status !== 'active'
+        ) {
             abort(404);
         }
 

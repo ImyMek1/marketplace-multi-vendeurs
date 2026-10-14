@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AddressController;
+use App\Http\Controllers\Api\V1\AdminCouponController;
+use App\Http\Controllers\Api\V1\AdminDashboardController;
+use App\Http\Controllers\Api\V1\AdminManagementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\CategoryController;
@@ -11,6 +14,7 @@ use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ReviewController;
+use App\Http\Controllers\Api\V1\SellerDashboardController;
 use App\Http\Controllers\Api\V1\ShopController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,7 +59,7 @@ Route::prefix('v1')->group(function () {
             'resetPassword',
         ]);
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
             Route::post('/logout', [
                 AuthController::class,
@@ -66,6 +70,11 @@ Route::prefix('v1')->group(function () {
                 AuthController::class,
                 'me',
             ]);
+
+            Route::put('/profile', [
+                AuthController::class,
+                'updateProfile',
+            ]);
         });
     });
 
@@ -75,7 +84,7 @@ Route::prefix('v1')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
         Route::get('/notifications', [
             NotificationController::class,
@@ -106,6 +115,7 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware([
         'auth:sanctum',
+        'active',
         'role:client',
     ])->group(function () {
 
@@ -231,14 +241,37 @@ Route::prefix('v1')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Seller Dashboard
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware([
+        'auth:sanctum',
+        'active',
+        'role:seller',
+    ])->group(function () {
+
+        Route::get('/seller/dashboard', [
+            SellerDashboardController::class,
+            'index',
+        ]);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | Seller
     |--------------------------------------------------------------------------
     */
 
     Route::middleware([
         'auth:sanctum',
+        'active',
         'role:seller,admin',
     ])->group(function () {
+        Route::get('/seller/products', [
+            ProductController::class,
+            'sellerProducts',
+        ]);
 
         Route::get('/seller/orders', [
             OrderController::class,
@@ -259,8 +292,14 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware([
         'auth:sanctum',
+        'active',
         'role:driver',
     ])->group(function () {
+
+        Route::get('/driver/dashboard', [
+            DeliveryController::class,
+            'driverDashboard',
+        ]);
 
         Route::get('/driver/deliveries', [
             DeliveryController::class,
@@ -291,8 +330,39 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware([
         'auth:sanctum',
+        'active',
         'role:admin',
     ])->prefix('admin')->group(function () {
+
+        Route::get('/dashboard', [
+            AdminDashboardController::class,
+            'index',
+        ]);
+
+        Route::get('/users', [AdminManagementController::class, 'users']);
+        Route::get('/users/{user}', [AdminManagementController::class, 'user']);
+        Route::patch('/users/{user}/status', [AdminManagementController::class, 'updateUserStatus']);
+
+        Route::get('/shops', [AdminManagementController::class, 'shops']);
+        Route::get('/shops/{shop}', [AdminManagementController::class, 'shop']);
+
+        Route::get('/products', [AdminManagementController::class, 'products']);
+        Route::get('/products/{product}', [AdminManagementController::class, 'product']);
+
+        Route::get('/orders', [AdminManagementController::class, 'orders']);
+        Route::get('/orders/{order}', [AdminManagementController::class, 'order']);
+
+        Route::get('/categories', [AdminManagementController::class, 'categories']);
+
+        Route::get('/reviews', [AdminManagementController::class, 'reviews']);
+
+        Route::get('/coupons', [AdminCouponController::class, 'index']);
+        Route::get('/coupons/{coupon}', [AdminCouponController::class, 'show']);
+        Route::post('/coupons', [AdminCouponController::class, 'store']);
+        Route::put('/coupons/{coupon}', [AdminCouponController::class, 'update']);
+        Route::patch('/coupons/{coupon}/status', [AdminCouponController::class, 'updateStatus']);
+
+        Route::get('/commissions', [AdminManagementController::class, 'commissions']);
 
         /*
         |--------------------------------------------------------------------------
@@ -384,6 +454,16 @@ Route::prefix('v1')->group(function () {
             'adminIndex',
         ]);
 
+        Route::get('/deliveries/{delivery}', [
+            DeliveryController::class,
+            'show',
+        ]);
+
+        Route::get('/deliveries/{delivery}/history', [
+            DeliveryController::class,
+            'history',
+        ]);
+
         Route::patch('/orders/{order}/delivery/assign', [
             DeliveryController::class,
             'assign',
@@ -396,7 +476,7 @@ Route::prefix('v1')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
         Route::post('/products/{product}/images', [
             ProductImageController::class,
@@ -420,7 +500,7 @@ Route::prefix('v1')->group(function () {
         'show',
     ]);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
         Route::middleware('role:seller')->group(function () {
 
@@ -429,16 +509,16 @@ Route::prefix('v1')->group(function () {
                 'myShop',
             ]);
 
+            Route::put('/seller/shop', [
+                ShopController::class,
+                'updateMyShop',
+            ]);
+
             Route::post('/shops', [
                 ShopController::class,
                 'store',
             ]);
         });
-
-        Route::put('/shops/{shop}', [
-            ShopController::class,
-            'update',
-        ]);
     });
 
     /*
@@ -457,7 +537,7 @@ Route::prefix('v1')->group(function () {
         'show',
     ]);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
         Route::post('/products', [
             ProductController::class,

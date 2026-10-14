@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Models\Role;
 
 class AssignDriverRequest extends FormRequest
 {
@@ -21,10 +22,13 @@ class AssignDriverRequest extends FormRequest
                 Rule::exists('users', 'id')
                     ->where(function ($query) {
                         $query
-                            ->whereHas('role', function ($roleQuery) {
-                                $roleQuery->where('name', 'driver');
-                            })
-                            ->where('status', 'active');
+                            ->where('status', 'active')
+                            ->whereIn(
+                                'role_id',
+                                Role::query()
+                                    ->select('id')
+                                    ->where('name', 'driver')
+                            );
                     }),
             ],
         ];

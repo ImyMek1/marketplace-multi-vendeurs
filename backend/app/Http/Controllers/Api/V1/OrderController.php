@@ -19,8 +19,7 @@ class OrderController extends Controller
         private OrderService $orderService,
         private OrderStatusService $orderStatusService,
         private CommissionService $commissionService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -77,28 +76,27 @@ class OrderController extends Controller
 
     public function sellerOrders(Request $request): JsonResponse
     {
+        $sellerId = $request->user()->id;
+
         $orders = Order::query()
-            ->whereHas('items.product.shop', function ($query) use ($request) {
-                $query->where('seller_id', $request->user()->id);
+            ->whereHas('sellerFulfillments', function ($query) use ($sellerId) {
+                $query->where('seller_id', $sellerId);
             })
             ->with([
-                'items' => function ($query) use ($request) {
-                    $query
-                        ->whereHas('product.shop', function ($shopQuery) use ($request) {
-                            $shopQuery->where(
-                                'seller_id',
-                                $request->user()->id
-                            );
-                        })
-                        ->with([
-                            'product.shop',
-                            'product.images',
-                        ]);
+                'sellerFulfillments' => function ($query) use ($sellerId) {
+                    $query->where('seller_id', $sellerId);
+                },
+                'items' => function ($query) use ($sellerId) {
+                    $query->whereHas('product.shop', function ($shopQuery) use ($sellerId) {
+                        $shopQuery->where('seller_id', $sellerId);
+                    })->with(['product.shop', 'product.images']);
                 },
                 'payment',
                 'delivery',
                 'user:id,name,email,phone',
-                'commissions',
+                'commissions' => function ($query) use ($sellerId) {
+                    $query->where('seller_id', $sellerId);
+                },
             ])
             ->latest()
             ->paginate(10);
@@ -114,21 +112,30 @@ class OrderController extends Controller
             ->authorize('updateStatus', $order);
 
         $newStatus = $request->validated('status');
+        $role = $request->user()->role?->name;
 
-        $order = $this->orderStatusService->updateStatus(
-            $order,
-            $newStatus,
-            $request->user()->id,
-            $request->ip()
-        );
-
-        if ($newStatus === 'confirmed') {
-            $this->commissionService->createForOrder($order);
+        if ($role === 'seller') {
+            $order = $this->orderStatusService->updateSellerStatus(
+                $order,
+                $newStatus,
+                $request->user(),
+                $request->ip()
+            );
+        } else {
+            $order = $this->orderStatusService->updateStatus(
+                $order,
+                $newStatus,
+                $request->user()->id,
+                $request->ip()
+            );
         }
 
         return response()->json([
             'message' => 'Order status updated successfully.',
-            'data' => $order->load('commissions'),
+            'data' => $order->load([
+                'sellerFulfillments',
+                'commissions',
+            ]),
         ]);
     }
 }

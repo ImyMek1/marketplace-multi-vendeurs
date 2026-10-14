@@ -65,7 +65,7 @@ class ProductImageController extends Controller
             if (
                 !$hasExistingPrimary
                 && !collect($createdImages)->contains(
-                    fn (ProductImage $image) => $image->is_primary
+                    fn(ProductImage $image) => $image->is_primary
                 )
                 && !empty($createdImages)
             ) {
@@ -86,6 +86,13 @@ class ProductImageController extends Controller
         ProductImage $productImage
     ): JsonResponse {
         $user = $request->user();
+
+        if (!in_array($user->role?->name, ['seller', 'admin'], true)) {
+            return response()->json([
+                'message' => 'You are not allowed to manage product images.',
+            ], 403);
+        }
+
         $product = $productImage->product;
 
         if (

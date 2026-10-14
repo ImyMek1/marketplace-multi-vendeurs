@@ -83,6 +83,11 @@ class User extends Authenticatable
         return $this->hasMany(Commission::class, 'seller_id');
     }
 
+    public function sellerOrderFulfillments(): HasMany
+    {
+        return $this->hasMany(SellerOrderFulfillment::class, 'seller_id');
+    }
+
     public function deliveries(): HasMany
     {
         return $this->hasMany(Delivery::class, 'driver_id');

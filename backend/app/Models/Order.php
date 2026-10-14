@@ -74,4 +74,9 @@ class Order extends Model
     {
         return $this->hasMany(Commission::class);
     }
+
+    public function sellerFulfillments(): HasMany
+    {
+        return $this->hasMany(SellerOrderFulfillment::class);
+    }
 }
